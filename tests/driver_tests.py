@@ -102,7 +102,8 @@ def test_driver_2():
                 '-cv', '2',
                 '-s',' 45',
                 '-config', 'TPOT light',
-                '-v', '1'
+                '-v', '1',
+                '--no-update-check'
                 ]
     args = _get_arg_parser().parse_args(args_list)
     with captured_output() as (out, err):
@@ -273,6 +274,7 @@ CHECKPOINT_FOLDER   =     None
 CONFIG_FILE         =     None
 CROSSOVER_RATE      =     0.1
 EARLY_STOP          =     None
+FIXED_LENGTH        =     None
 GENERATIONS         =     100
 INPUT_FILE          =     tests/tests.csv
 INPUT_SEPARATOR     =     ,
@@ -293,9 +295,7 @@ TEMPLATE            =     RandomTree
 TPOT_MODE           =     classification
 VERBOSITY           =     1
 
-"""
-        print
-
+""".format('')
         self.assertEqual(_sort_lines(expected_output), _sort_lines(output))
 
 
@@ -336,7 +336,7 @@ TEMPLATE            =     RandomTree
 TPOT_MODE           =     regression
 VERBOSITY           =     1
 
-"""
+""".format('')
 
         self.assertEqual(_sort_lines(expected_output), _sort_lines(output))
 

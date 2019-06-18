@@ -420,6 +420,17 @@ def _get_arg_parser():
     )
 
     parser.add_argument(
+        '-fixed_length',
+        action='store',
+        dest='FIXED_LENGTH',
+        default=None,
+        type=int,
+        help=(
+            'Fix length of pipelines.'
+        )
+    )
+
+    parser.add_argument(
         '-v',
         action='store',
         dest='VERBOSITY',
@@ -544,6 +555,7 @@ def tpot_driver(args):
         random_state=args.RANDOM_STATE,
         config_dict=args.CONFIG_FILE,
         template=args.TEMPLATE,
+        fixed_length=args.FIXED_LENGTH,
         memory=args.MEMORY,
         periodic_checkpoint_folder=args.CHECKPOINT_FOLDER,
         early_stop=args.EARLY_STOP,

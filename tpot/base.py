@@ -107,6 +107,7 @@ class TPOTBase(BaseEstimator):
                  scoring=None, cv=5, subsample=1.0, n_jobs=1,
                  max_time_mins=None, max_eval_time_mins=5,
                  random_state=None, config_dict=None, template='RandomTree',
+                 fixed_length=None, simple_pipeline=False,
                  warm_start=False, memory=None, use_dask=False,
                  periodic_checkpoint_folder=None, early_stop=None,
                  verbosity=0, disable_update_check=False):
@@ -215,6 +216,10 @@ class TPOTBase(BaseEstimator):
             TransformerMixin, ClassifierMixin or RegressorMixin in scikit-learn) to that step.
             Steps in the template are delimited by "-", e.g. "SelectPercentile-Transformer-Classifier".
             By default value of template is "RandomTree", TPOT generates tree-based pipeline randomly.
+        fixed_length: integer (default=None)
+            fix length of pipelines
+        simple_pipeline: bool (default=False)
+            Flag indicating whether the TPOT will use StackingEstimator and CombineDFs
         warm_start: bool, optional (default: False)
             Flag indicating whether the TPOT instance will reuse the population from
             previous calls to fit().
@@ -282,6 +287,8 @@ class TPOTBase(BaseEstimator):
         self.early_stop = early_stop
         self.config_dict = config_dict
         self.template = template
+        self.fixed_length = fixed_length
+        self.simple_pipeline = simple_pipeline
         self.warm_start = warm_start
         self.memory = memory
         self.use_dask = use_dask
@@ -290,12 +297,16 @@ class TPOTBase(BaseEstimator):
         self.random_state = random_state
 
 
-    def _setup_template(self, template):
+    def _setup_template_fixed_length(self, template, fixed_length):
         self.template = template
         self.template_comp = template.split('-')
         if self.template == 'RandomTree':
-            self._min = 1
-            self._max = 3
+            if fixed_length:
+                self._min = fixed_length
+                self._max = fixed_length + 1
+            else:
+                self._min = 1
+                self._max = 3
         else:
             self._min = 0
             self._max = 1
@@ -431,15 +442,23 @@ class TPOTBase(BaseEstimator):
             for operator in self.operators:
                 arg_types =  operator.parameter_types()[0][1:]
                 p_types = ([step_in_type] + arg_types, step_ret_type)
-                if operator.root:
-                    # We need to add rooted primitives twice so that they can
-                    # return both an Output_Array (and thus be the root of the tree),
-                    # and return a np.ndarray so they can exist elsewhere in the tree.
-                    self._pset.addPrimitive(operator, *p_types)
-                tree_p_types = ([step_in_type] + arg_types, step_in_type)
-                self._pset.addPrimitive(operator, *tree_p_types)
+                if self.simple_pipeline:
+                    if operator.root: # ML algorithms only add once
+                        p_types = (operator.parameter_types()[0], Output_Array)
+                        self._pset.addPrimitive(operator, *p_types)
+                    else: # transformers
+                        self._pset.addPrimitive(operator, *operator.parameter_types())
+                else:
+                    if operator.root:
+                        # We need to add rooted primitives twice so that they can
+                        # return both an Output_Array (and thus be the root of the tree),
+                        # and return a np.ndarray so they can exist elsewhere in the tree.
+                        self._pset.addPrimitive(operator, *p_types)
+                    tree_p_types = ([step_in_type] + arg_types, step_in_type)
+                    self._pset.addPrimitive(operator, *tree_p_types)
                 self._import_hash_and_add_terminals(operator, arg_types)
-            self._pset.addPrimitive(CombineDFs(), [step_in_type, step_in_type], step_in_type)
+            if not self.fixed_length and not self.simple_pipeline: # no CombineDFs when fixed_length
+                self._pset.addPrimitive(CombineDFs(), [np.ndarray, np.ndarray], np.ndarray)
         else:
             gp_types = {}
             for idx, step in enumerate(self.template_comp):
@@ -550,7 +569,7 @@ class TPOTBase(BaseEstimator):
 
         self._setup_config(self.config_dict)
 
-        self._setup_template(self.template)
+        self._setup_template_fixed_length(self.template, self.fixed_length)
 
         self.operators = []
         self.arguments = []
